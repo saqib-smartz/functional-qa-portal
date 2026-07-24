@@ -9,6 +9,9 @@ const IS_SERVERLESS = Boolean(
  * uses playwright-core + the AWS-Lambda-compatible @sparticuz/chromium build. Locally, the full
  * `playwright` package (with its own downloaded browser) is simpler and needs no executablePath.
  */
+// Suppresses the navigator.webdriver flag that most baseline bot-detection checks look for.
+const STEALTH_ARGS = ["--disable-blink-features=AutomationControlled"];
+
 export async function getBrowser(): Promise<Browser> {
   if (IS_SERVERLESS) {
     const [{ chromium }, sparticuzChromium] = await Promise.all([
@@ -17,12 +20,12 @@ export async function getBrowser(): Promise<Browser> {
     ]);
 
     return chromium.launch({
-      args: sparticuzChromium.args,
+      args: [...sparticuzChromium.args, ...STEALTH_ARGS],
       executablePath: await sparticuzChromium.executablePath(),
       headless: true,
     });
   }
 
   const { chromium } = await import("playwright");
-  return chromium.launch({ headless: true });
+  return chromium.launch({ headless: true, args: STEALTH_ARGS });
 }

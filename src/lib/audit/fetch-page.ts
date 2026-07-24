@@ -6,9 +6,14 @@ export const DESKTOP_VIEWPORT = { width: 1440, height: 900 };
 export const TABLET_VIEWPORT = { width: 768, height: 1024 };
 export const MOBILE_VIEWPORT = { width: 390, height: 844 };
 
+// Some hosts (e.g. Pressable) run bot-detection that flags a custom UA token like the
+// "WP-QA-Auditor/1.0" suffix this used to carry. Default to a stock desktop Chrome UA that
+// doesn't self-identify as automation; ops can override per-environment via AUDIT_USER_AGENT
+// without a code change if a specific host's security still flags the default string.
 const AUDITOR_USER_AGENT =
+  process.env.AUDIT_USER_AGENT?.trim() ||
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " +
-  "Chrome/124.0.0.0 Safari/537.36 WP-QA-Auditor/1.0";
+    "Chrome/124.0.0.0 Safari/537.36";
 
 export interface FetchedPage {
   context: BrowserContext;
