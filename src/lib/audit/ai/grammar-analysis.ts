@@ -1,4 +1,6 @@
-import { getOpenAIClient, isAiConfigured, OPENAI_MODEL } from "./client";
+import { z } from "zod";
+import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
+import { getAnthropicClient, isAiConfigured, ANTHROPIC_MODEL } from "./client";
 import { makeFinding, type AuditContext, type Finding, type Severity } from "@/lib/audit/types";
 
 const ISSUE_TYPES = [
@@ -47,36 +49,17 @@ proper nouns, brand names, or intentional stylistic choices as errors. For each 
 text and a corrected/improved version. Keep "original" short (a phrase or sentence, not the whole page). Return at
 most 40 of the clearest, highest-value issues.`;
 
-interface RawIssue {
-  original: string;
-  suggestion: string;
-  issueType: string;
-  severity: string;
-  explanation: string;
-}
+const IssueSchema = z.strictObject({
+  original: z.string(),
+  suggestion: z.string(),
+  issueType: z.enum(ISSUE_TYPES),
+  severity: z.enum(["critical", "high", "medium", "low"]),
+  explanation: z.string(),
+});
 
-const RESPONSE_SCHEMA = {
-  type: "object",
-  properties: {
-    issues: {
-      type: "array",
-      items: {
-        type: "object",
-        properties: {
-          original: { type: "string" },
-          suggestion: { type: "string" },
-          issueType: { type: "string", enum: [...ISSUE_TYPES] },
-          severity: { type: "string", enum: ["critical", "high", "medium", "low"] },
-          explanation: { type: "string" },
-        },
-        required: ["original", "suggestion", "issueType", "severity", "explanation"],
-        additionalProperties: false,
-      },
-    },
-  },
-  required: ["issues"],
-  additionalProperties: false,
-} as const;
+const GrammarAnalysisResponseSchema = z.strictObject({
+  issues: z.array(IssueSchema),
+});
 
 function toSeverity(value: string): Severity {
   return (["critical", "high", "medium", "low", "info"] as const).includes(value as Severity)
@@ -93,10 +76,10 @@ export async function analyzeGrammar(text: string, ctx: AuditContext): Promise<F
         status: "warning",
         severity: "low",
         pageUrl: ctx.url,
-        description: "OPENAI_API_KEY is not configured, so automated grammar/spelling analysis did not run for this audit.",
+        description: "ANTHROPIC_API_KEY is not configured, so automated grammar/spelling analysis did not run for this audit.",
         whyItMatters:
           "Spelling and grammar mistakes on a live page reflect poorly on brand credibility and can confuse visitors.",
-        recommendation: "Set OPENAI_API_KEY (and optionally OPENAI_MODEL) in the environment to enable this check.",
+        recommendation: "Set ANTHROPIC_API_KEY (and optionally ANTHROPIC_MODEL) in the environment to enable this check.",
         estimatedFixTime: "5 minutes",
       }),
     ];
@@ -118,25 +101,19 @@ export async function analyzeGrammar(text: string, ctx: AuditContext): Promise<F
     ];
   }
 
-  const client = getOpenAIClient();
-  const completion = await client.chat.completions.create({
-    model: OPENAI_MODEL,
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: `Analyze the following webpage body text:\n\n${text}` },
-    ],
-    response_format: {
-      type: "json_schema",
-      json_schema: { name: "grammar_issues", schema: RESPONSE_SCHEMA, strict: true },
-    },
+  const client = getAnthropicClient();
+  const response = await client.messages.parse({
+    model: ANTHROPIC_MODEL,
+    max_tokens: 8192,
+    system: SYSTEM_PROMPT,
+    messages: [{ role: "user", content: `Analyze the following webpage body text:\n\n${text}` }],
+    output_config: { format: zodOutputFormat(GrammarAnalysisResponseSchema) },
   });
 
-  const raw = completion.choices[0]?.message?.content;
-  if (!raw) {
-    throw new Error("OpenAI returned an empty grammar-analysis response.");
+  const parsed = response.parsed_output;
+  if (!parsed) {
+    throw new Error("Claude returned a grammar-analysis response that could not be parsed.");
   }
-
-  const parsed = JSON.parse(raw) as { issues: RawIssue[] };
 
   if (parsed.issues.length === 0) {
     return [

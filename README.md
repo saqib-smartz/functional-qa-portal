@@ -8,7 +8,7 @@ you can export as a PDF. It never crawls beyond the one submitted page.
 
 ## Tech stack
 
-Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS · shadcn/ui · Playwright · OpenAI ·
+Next.js 15 (App Router) · React 19 · TypeScript (strict) · Tailwind CSS · shadcn/ui · Playwright · Claude (Anthropic) ·
 React Hook Form · Zod · Framer Motion · Lucide
 
 ## How it works
@@ -18,8 +18,8 @@ React Hook Form · Zod · Framer Motion · Lucide
 2. Modules that only need the static HTML (SEO, images, links, WordPress detection, etc.) run concurrently via
    Cheerio. Modules that need a live, interactive page (performance metrics, responsive-viewport screenshots,
    navigation/search/form interaction) run afterward against the same browser context.
-3. After all DOM-based modules finish, the page's visible text is extracted and sent to OpenAI for grammar/
-   spelling analysis, then an executive summary is generated from the full finding set.
+3. After all DOM-based modules finish, the page's visible text is extracted and sent to Claude (Anthropic) for
+   grammar/spelling analysis, then an executive summary is generated from the full finding set.
 4. The client holds the completed report in memory; **Export as PDF** posts it to `POST /api/audit/pdf`, which
    renders a dedicated print-styled HTML document and converts it to a PDF via Playwright's `page.pdf()`.
 
@@ -57,9 +57,9 @@ npx playwright install --with-deps chromium   # local dev only — see Deploymen
 cp .env.example .env
 ```
 
-Set `OPENAI_API_KEY` in `.env` (required for grammar analysis and the AI executive summary — without it, the
+Set `ANTHROPIC_API_KEY` in `.env` (required for grammar analysis and the AI executive summary — without it, the
 report falls back to a deterministic, templated summary and a finding noting AI grammar analysis was skipped).
-`OPENAI_MODEL` is optional (defaults to `gpt-4o-mini`).
+`ANTHROPIC_MODEL` is optional (defaults to `claude-haiku-4-5`).
 
 ```bash
 npm run dev
@@ -74,7 +74,7 @@ uses `playwright-core` + `@sparticuz/chromium` (a Lambda-compatible Chromium bui
 full `playwright` package instead, via `src/lib/audit/browser.ts`. No extra configuration is needed beyond
 deploying normally — `next.config.ts` already marks these packages as external server dependencies.
 
-**Function duration**: an audit (multiple viewports, live form submission, an OpenAI call) can take
+**Function duration**: an audit (multiple viewports, live form submission, a Claude API call) can take
 30–90+ seconds. The API routes set `maxDuration = 300` (300s), but Vercel enforces plan-based ceilings — Hobby
 caps out around 60s, Pro allows up to 300s+ (higher with Fluid Compute). **Pro or higher is recommended** for
 reliable full audits; on Hobby, expect slower/heavier pages to time out.
@@ -96,7 +96,7 @@ src/
       fetch-page.ts            # single navigation + Cheerio snapshot
       modules/                 # one file per QA category
       detectors/               # WordPress theme/plugin, form-plugin, cookie-provider fingerprints
-      ai/                      # OpenAI client, text extraction, grammar analysis, executive summary
+      ai/                      # Claude (Anthropic) client, text extraction, grammar analysis, executive summary
     pdf/build-report-html.ts   # print-HTML template used for PDF export
     validation/                # zod request schema
   hooks/use-audit-stream.ts    # client hook: submit URL, consume the NDJSON stream

@@ -1,4 +1,5 @@
 import type { AuditContext, AuditModule, AuditReport, AuditStreamEvent, Finding } from "./types";
+import { makeFinding } from "./types";
 import { getBrowser } from "./browser";
 import { fetchPage } from "./fetch-page";
 import { captureScreenshot } from "./screenshots";
@@ -119,11 +120,22 @@ export async function runAudit(url: string, emit: Emit): Promise<AuditReport> {
         findings.push(...grammarFindings);
         emit({ type: "module-done", category: "grammar", findingsCount: grammarFindings.length });
       } catch (err) {
-        emit({
-          type: "module-error",
-          category: "grammar",
-          message: err instanceof Error ? err.message : "Grammar analysis failed",
-        });
+        const message = err instanceof Error ? err.message : "Grammar analysis failed";
+        findings.push(
+          makeFinding({
+            category: "grammar",
+            title: "AI grammar analysis failed",
+            status: "warning",
+            severity: "low",
+            pageUrl: url,
+            description: `Automated grammar/spelling analysis did not complete: ${message}`,
+            whyItMatters:
+              "Spelling and grammar mistakes on a live page reflect poorly on brand credibility and can confuse visitors.",
+            recommendation: "Re-run the audit. If this keeps failing, check the server logs and the ANTHROPIC_API_KEY configuration.",
+            estimatedFixTime: "N/A",
+          }),
+        );
+        emit({ type: "module-error", category: "grammar", message });
       }
 
       emit({ type: "status", message: "Generating executive summary…" });
