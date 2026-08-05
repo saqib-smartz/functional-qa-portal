@@ -1,4 +1,5 @@
 import type { AuditContext, AuditModule, AuditReport, AuditStreamEvent, Finding } from "./types";
+import { makeFinding } from "./types";
 import { getBrowser } from "./browser";
 import { fetchPage } from "./fetch-page";
 import { captureScreenshot } from "./screenshots";
@@ -13,6 +14,7 @@ import { securityModule } from "./modules/security";
 import { downloadsModule } from "./modules/downloads";
 import { cookieBannerModule } from "./modules/cookie-banner";
 import { performanceModule } from "./modules/performance";
+import { accessibilityModule } from "./modules/accessibility";
 import { responsiveModule } from "./modules/responsive";
 import { navigationModule } from "./modules/navigation";
 import { searchModule } from "./modules/search";
@@ -21,6 +23,8 @@ import { formsModule } from "./modules/forms";
 import { extractVisibleText } from "./ai/extract-text";
 import { analyzeGrammar } from "./ai/grammar-analysis";
 import { generateExecutiveSummary } from "./ai/executive-summary";
+import { isDbConfigured } from "@/lib/db/client";
+import { recordAudit } from "@/lib/db/audits";
 
 /** Phase A + B: independent of each other, safe to run concurrently. */
 const CONCURRENT_PHASES: AuditModule[][] = [
@@ -37,7 +41,7 @@ const CONCURRENT_PHASES: AuditModule[][] = [
     cookieBannerModule,
   ],
   // Phase B — live page, read-only
-  [performanceModule],
+  [performanceModule, accessibilityModule],
 ];
 
 /**
@@ -68,7 +72,7 @@ async function runModule(mod: AuditModule, ctx: AuditContext, findings: Finding[
   }
 }
 
-export async function runAudit(url: string, emit: Emit): Promise<AuditReport> {
+export async function runAudit(url: string, emit: Emit, crawlBatchId?: string): Promise<AuditReport> {
   const startedAt = new Date().toISOString();
   const findings: Finding[] = [];
 
@@ -105,6 +109,7 @@ export async function runAudit(url: string, emit: Emit): Promise<AuditReport> {
         await runModule(mod, ctx, findings, emit);
       }
 
+      let pageText = "";
       emit({ type: "module-start", category: "grammar", label: "Grammar & Spelling" });
       try {
         // navigation/search/forms may have left the live page on a results/thank-you page —
@@ -115,15 +120,27 @@ export async function runAudit(url: string, emit: Emit): Promise<AuditReport> {
             .catch(() => undefined);
         }
         const text = await extractVisibleText(ctx.page);
+        pageText = text;
         const grammarFindings = await analyzeGrammar(text, ctx);
         findings.push(...grammarFindings);
         emit({ type: "module-done", category: "grammar", findingsCount: grammarFindings.length });
       } catch (err) {
-        emit({
-          type: "module-error",
-          category: "grammar",
-          message: err instanceof Error ? err.message : "Grammar analysis failed",
-        });
+        const message = err instanceof Error ? err.message : "Grammar analysis failed";
+        findings.push(
+          makeFinding({
+            category: "grammar",
+            title: "AI grammar analysis failed",
+            status: "warning",
+            severity: "low",
+            pageUrl: url,
+            description: `Automated grammar/spelling analysis did not complete: ${message}`,
+            whyItMatters:
+              "Spelling and grammar mistakes on a live page reflect poorly on brand credibility and can confuse visitors.",
+            recommendation: "Re-run the audit. If this keeps failing, check the server logs and the ANTHROPIC_API_KEY configuration.",
+            estimatedFixTime: "N/A",
+          }),
+        );
+        emit({ type: "module-error", category: "grammar", message });
       }
 
       emit({ type: "status", message: "Generating executive summary…" });
@@ -141,6 +158,17 @@ export async function runAudit(url: string, emit: Emit): Promise<AuditReport> {
         findings,
         executiveSummary,
       };
+
+      if (isDbConfigured()) {
+        try {
+          await recordAudit(report, pageText, crawlBatchId);
+        } catch (err) {
+          emit({
+            type: "status",
+            message: `Audit completed but could not be saved to history: ${err instanceof Error ? err.message : "unknown error"}`,
+          });
+        }
+      }
 
       emit({ type: "complete", report });
       return report;

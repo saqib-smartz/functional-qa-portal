@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import type { AuditReport, AuditStreamEvent, Category } from "@/lib/audit/types";
+import { runAuditRequest } from "@/lib/audit/run-audit-request";
 
 export interface ModuleProgress {
   category: Category;
@@ -84,35 +85,7 @@ export function useAuditStream(): UseAuditStreamResult {
     };
 
     try {
-      const res = await fetch("/api/audit", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
-      });
-
-      if (!res.ok || !res.body) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error ?? `Request failed with status ${res.status}.`);
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (!line.trim()) continue;
-          handleEvent(JSON.parse(line) as AuditStreamEvent);
-        }
-      }
-      if (buffer.trim()) {
-        handleEvent(JSON.parse(buffer) as AuditStreamEvent);
-      }
+      await runAuditRequest(url, handleEvent);
     } catch (err) {
       setStatus("error");
       setError(err instanceof Error ? err.message : "The audit failed unexpectedly.");

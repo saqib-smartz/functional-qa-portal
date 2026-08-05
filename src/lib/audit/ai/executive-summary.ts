@@ -1,4 +1,4 @@
-import { getOpenAIClient, isAiConfigured, OPENAI_MODEL } from "./client";
+import { getAnthropicClient, isAiConfigured, ANTHROPIC_MODEL } from "./client";
 import { describeNonSuccessStatus } from "@/lib/audit/blocked-page";
 import { CATEGORY_LABELS, type AuditContext, type Finding } from "@/lib/audit/types";
 
@@ -76,16 +76,16 @@ export async function generateExecutiveSummary(ctx: AuditContext, findings: Find
     }
 
     try {
-      const client = getOpenAIClient();
-      const completion = await client.chat.completions.create({
-        model: OPENAI_MODEL,
-        messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          { role: "user", content: buildPrompt(ctx, findings, counts) },
-        ],
+      const client = getAnthropicClient();
+      const response = await client.messages.create({
+        model: ANTHROPIC_MODEL,
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content: buildPrompt(ctx, findings, counts) }],
       });
 
-      const text = completion.choices[0]?.message?.content?.trim();
+      const textBlock = response.content.find((block) => block.type === "text");
+      const text = textBlock?.text.trim();
       return text && text.length > 0 ? text : buildFallbackSummary(ctx, findings, counts);
     } catch {
       return buildFallbackSummary(ctx, findings, counts);

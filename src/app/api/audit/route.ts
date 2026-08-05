@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { url } = parsed.data;
+  const { url, crawlBatchId } = parsed.data;
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
@@ -35,7 +35,7 @@ export async function POST(request: NextRequest) {
       };
 
       try {
-        await runAudit(url, emit);
+        await runAudit(url, emit, crawlBatchId);
       } catch (err) {
         emit({
           type: "error",

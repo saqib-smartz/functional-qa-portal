@@ -293,6 +293,63 @@ export const seoModule: AuditModule = {
       );
     }
 
+    // 7. Meta robots directive
+    const robotsContent = $('meta[name="robots"]').first().attr("content")?.trim() ?? "";
+    const robotsDirectives = robotsContent
+      .toLowerCase()
+      .split(/[\s,]+/)
+      .filter(Boolean);
+    const hasNoindex = robotsDirectives.includes("noindex");
+    const hasNofollow = robotsDirectives.includes("nofollow");
+
+    if (hasNoindex) {
+      findings.push(
+        makeFinding({
+          category: "seo",
+          title: "Page is set to noindex — will not appear in search results",
+          status: "fail",
+          severity: "critical",
+          pageUrl: url,
+          description: `Meta robots tag content is "${robotsContent}", which includes a noindex directive.`,
+          whyItMatters: "A noindex directive tells search engines to exclude this page from their index entirely, making it invisible in search results regardless of any other SEO work.",
+          recommendation: "Confirm this is intentional; if not, remove the noindex directive from the meta robots tag.",
+          estimatedFixTime: "5 minutes",
+          meta: { content: robotsContent },
+        }),
+      );
+    } else if (hasNofollow) {
+      findings.push(
+        makeFinding({
+          category: "seo",
+          title: "Page links are set to nofollow",
+          status: "warning",
+          severity: "medium",
+          pageUrl: url,
+          description: `Meta robots tag content is "${robotsContent}", which includes a nofollow directive.`,
+          whyItMatters: "Search engines won't pass link equity through this page's links, reducing the SEO value passed to pages it links to.",
+          recommendation: "Confirm this is intentional; if not, remove the nofollow directive from the meta robots tag.",
+          estimatedFixTime: "5 minutes",
+          meta: { content: robotsContent },
+        }),
+      );
+    } else {
+      findings.push(
+        makeFinding({
+          category: "seo",
+          title: "No restrictive meta robots directives found",
+          status: "pass",
+          severity: "info",
+          pageUrl: url,
+          description: robotsContent
+            ? `Meta robots tag content is "${robotsContent}", with no noindex or nofollow directive.`
+            : "No meta robots tag was found.",
+          whyItMatters: "Without restrictive directives, search engines are free to index this page and follow its links.",
+          recommendation: "No action needed.",
+          estimatedFixTime: "0 minutes",
+        }),
+      );
+    }
+
     return findings;
   },
 };
