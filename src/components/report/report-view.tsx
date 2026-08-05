@@ -5,6 +5,7 @@ import { XCircle, AlertTriangle, CheckCircle2, ShieldAlert } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
 import { ExecutiveSummary } from "@/components/report/executive-summary";
+import { AuditComparisonView } from "@/components/report/audit-comparison-view";
 import { ScreenshotGallery } from "@/components/report/screenshot-gallery";
 import { CategoryGroup } from "@/components/report/category-group";
 import { ReportToolbar, type StatusFilter } from "@/components/report/report-toolbar";
@@ -90,6 +91,8 @@ export function ReportView({ report }: { report: AuditReport }) {
       </div>
 
       <ExecutiveSummary summary={report.executiveSummary} />
+
+      <AuditComparisonView currentReportId={report.id} url={report.url} />
 
       <Card>
         <CardHeader>
