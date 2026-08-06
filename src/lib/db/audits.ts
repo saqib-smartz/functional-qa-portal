@@ -89,6 +89,12 @@ export async function listAuditPagesSummary(): Promise<AuditPageSummary[]> {
   }));
 }
 
+export async function clearAllAudits(): Promise<number> {
+  const db = await getDb();
+  const { deletedCount } = await auditsCollection(db).deleteMany({});
+  return deletedCount;
+}
+
 export async function getAuditById(id: string): Promise<StoredAudit | null> {
   const db = await getDb();
   const row = await auditsCollection(db).findOne({ _id: id });

@@ -1,8 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronRight, Globe, History, Loader2, Plus, RefreshCw } from "lucide-react";
+import { ChevronRight, Globe, History, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogClose,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 import type { AuditPageSummary, AuditSummary } from "@/lib/db/types";
 
@@ -68,6 +77,8 @@ export function HistorySidebar({ activeAuditId, onSelectAudit, onNewCrawl, refre
   const [expandedPages, setExpandedPages] = useState<Set<string>>(new Set());
   const [datesByUrl, setDatesByUrl] = useState<Record<string, AuditSummary[]>>({});
   const [loadingUrl, setLoadingUrl] = useState<string | null>(null);
+  const [clearDialogOpen, setClearDialogOpen] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const loadPages = () => {
     setLoading(true);
@@ -79,6 +90,17 @@ export function HistorySidebar({ activeAuditId, onSelectAudit, onNewCrawl, refre
   };
 
   useEffect(loadPages, [refreshToken]);
+
+  const handleClear = () => {
+    setClearing(true);
+    fetch("/api/audits/clear", { method: "DELETE" })
+      .then(() => {
+        setClearDialogOpen(false);
+        setDatesByUrl({});
+        loadPages();
+      })
+      .finally(() => setClearing(false));
+  };
 
   const toggleSite = (hostname: string) => {
     setExpandedSites((prev) => {
@@ -120,14 +142,42 @@ export function HistorySidebar({ activeAuditId, onSelectAudit, onNewCrawl, refre
           <History className="size-4" />
           Crawl History
         </div>
-        <button
-          type="button"
-          onClick={loadPages}
-          title="Refresh"
-          className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-        >
-          <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
-        </button>
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={loadPages}
+            title="Refresh"
+            className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <RefreshCw className={cn("size-3.5", loading && "animate-spin")} />
+          </button>
+          <AlertDialog open={clearDialogOpen} onOpenChange={setClearDialogOpen}>
+            <button
+              type="button"
+              onClick={() => setClearDialogOpen(true)}
+              title="Clear database"
+              className="rounded-md p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+            >
+              <Trash2 className="size-3.5" />
+            </button>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear all audit history?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This permanently deletes every stored audit and crawl record from the database. This
+                  cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogClose disabled={clearing}>Cancel</AlertDialogClose>
+                <Button variant="destructive" onClick={handleClear} disabled={clearing}>
+                  {clearing ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
+                  Clear database
+                </Button>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </div>
 
       <div className="p-2">
