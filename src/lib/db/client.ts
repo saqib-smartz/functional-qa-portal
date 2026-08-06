@@ -1,20 +1,36 @@
-import mysql from "mysql2/promise";
+import { MongoClient, type Db } from "mongodb";
 
-let pool: mysql.Pool | null = null;
+const MONGODB_URI = process.env.MONGODB_URI;
 
-export function getDbPool(): mysql.Pool {
-  if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL is not set.");
+// Cache the connect() promise (not just the client) across warm serverless invocations, and
+// across HMR reloads in dev via a global, so concurrent cold-start callers share one in-flight
+// connection instead of racing to open their own.
+let clientPromise: Promise<MongoClient> | null = null;
+
+function getClientPromise(): Promise<MongoClient> {
+  if (!MONGODB_URI) {
+    throw new Error("MONGODB_URI is not set.");
   }
-  if (!pool) {
-    pool = mysql.createPool({
-      uri: process.env.DATABASE_URL,
-      connectionLimit: 5,
-    });
+  if (process.env.NODE_ENV === "development") {
+    const globalWithMongo = global as typeof globalThis & {
+      _mongoClientPromise?: Promise<MongoClient>;
+    };
+    if (!globalWithMongo._mongoClientPromise) {
+      globalWithMongo._mongoClientPromise = new MongoClient(MONGODB_URI).connect();
+    }
+    return globalWithMongo._mongoClientPromise;
   }
-  return pool;
+  if (!clientPromise) {
+    clientPromise = new MongoClient(MONGODB_URI).connect();
+  }
+  return clientPromise;
+}
+
+export async function getDb(): Promise<Db> {
+  const client = await getClientPromise();
+  return client.db();
 }
 
 export function isDbConfigured(): boolean {
-  return Boolean(process.env.DATABASE_URL);
+  return Boolean(MONGODB_URI);
 }
