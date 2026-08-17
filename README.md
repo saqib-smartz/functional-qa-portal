@@ -19,6 +19,7 @@ same page.
 - [Running locally](#running-locally)
 - [Environment variables](#environment-variables)
 - [MongoDB setup (optional)](#mongodb-setup-optional)
+- [Sharing a report](#sharing-a-report)
 - [Deployment](#deployment)
 - [API reference](#api-reference)
 - [Project structure](#project-structure)
@@ -38,6 +39,7 @@ same page.
 | **PDF export**               | Renders a dedicated print-styled document and converts it via Playwright's `page.pdf()`.                                                                |
 | **Audit history**            | Every audit is saved to MongoDB, browsable from a sidebar grouped by page with crawl counts.                                                            |
 | **Crawl comparison**         | Diff any two audits of the same page — findings _added_, _resolved_, _unchanged_, plus a line-level text diff of the page content.                      |
+| **Public share links**       | Mint an unguessable, revocable `/share/<token>` URL for any stored report — safe to send to a client.                                                    |
 | **Clear history**            | One control wipes the stored audit database.                                                                                                            |
 | **Responsive screenshots**   | Desktop, tablet, and mobile captures attached to the live report.                                                                                       |
 | **WordPress fingerprinting** | Detects theme, plugins, and the `generator` tag.                                                                                                        |
@@ -175,6 +177,8 @@ Audits are stored in a single `audits` collection. Document shape (see
   pageText: string; // visible text, used for the content diff
   report: AuditReport; // native subdocument, screenshots stripped
   crawlBatchId: string | null; // groups pages audited in one sitemap crawl
+  shareToken: string | null; // public share secret; null when never shared or revoked
+  sharedAt: Date | null;
 }
 ```
 
@@ -184,7 +188,20 @@ the Atlas UI's **Indexes** tab:
 ```js
 db.audits.createIndex({ url: 1, crawledAt: -1 }, { name: "audits_url_crawledAt_idx" });
 db.audits.createIndex({ crawlBatchId: 1 }, { name: "audits_crawlBatchId_idx", sparse: true });
+
+db.audits.createIndex(
+  { shareToken: 1 },
+  {
+    name: "audits_shareToken_idx",
+    unique: true,
+    partialFilterExpression: { shareToken: { $type: "string" } },
+  },
+);
 ```
+
+The share index is **partial, not sparse**: revoked rows store an explicit `null`, which a sparse
+index still indexes, so every revoked row would collide on the unique constraint. Rows written
+before sharing existed simply lack both fields — no backfill is needed.
 
 If you're using Atlas, allow your deployment's egress IPs under **Network Access**. Serverless
 platforms use dynamic IPs, so `0.0.0.0/0` is typically required for Vercel — pair it with a strong,
@@ -193,6 +210,38 @@ least-privilege database user.
 The connection pool is capped at `maxPoolSize: 10` and the `connect()` promise is cached across warm
 serverless invocations and dev HMR reloads, so concurrent cold starts share one connection instead
 of racing ([client.ts](src/lib/db/client.ts)).
+
+## Sharing a report
+
+Any stored report has a **Share** button next to _Export as PDF_. Clicking it mints a public URL:
+
+```
+https://your-deployment.example.com/share/<token>
+```
+
+The token is 256 bits of URL-safe randomness ([audits.ts](src/lib/db/audits.ts)), stored on the
+audit's own document. What the recipient gets is a read-only view of that one report — findings,
+filters, executive summary, and PDF export. The crawl-comparison panel is hidden, because it lists
+every stored audit of that URL; so is the history sidebar.
+
+Things worth knowing before you send a link:
+
+- **Requires `MONGODB_URI`.** Without it nothing is persisted, so the Share button doesn't render.
+- **Anyone with the URL can read the report.** There is no password and no login. Treat the link
+  itself as the credential.
+- **Links don't expire.** They live until you revoke them.
+- **Revoking is immediate and permanent for that token.** The URL starts returning a real 404.
+  Sharing the report again mints a *different* token; the old link never works.
+- **Sharing is idempotent.** Clicking Share twice returns the same link, not a second one.
+- **Shared pages are `noindex, nofollow`**, so they stay out of search results.
+- **Full-page viewport screenshots aren't included.** `recordAudit` strips them before writing to
+  MongoDB, so the desktop/tablet/mobile gallery reads "No screenshot captured" on a shared page.
+  Screenshots attached to individual findings *are* stored and do render. Including the viewport
+  captures would mean moving those PNGs to object storage — inline base64 would run at the 16 MB
+  BSON document limit.
+
+The share link is composed client-side from `window.location.origin`, so no base-URL environment
+variable is needed and preview deployments mint links for their own host.
 
 ## Deployment
 
@@ -269,6 +318,9 @@ All routes run on the Node.js runtime.
 | `GET`    | `/api/audits?url=<url>`             | Past audits for one URL (id/date/title/status), for the "compare against" picker.                                                                                   |
 | `GET`    | `/api/audits/[id]`                  | One historical audit in full, including its stored report.                                                                                                          |
 | `GET`    | `/api/audits/compare?a=<id>&b=<id>` | Diffs two audits. Order doesn't matter — older/newer is decided by `crawledAt`.                                                                                     |
+| `GET`    | `/api/audits/[id]/share`            | Returns `{ token }` — the report's live share token, or `null` if it isn't shared.                                                                                  |
+| `POST`   | `/api/audits/[id]/share`            | Mints the share link, or re-returns the existing one. Responds `{ token, sharedAt, path }`.                                                                         |
+| `DELETE` | `/api/audits/[id]/share`            | Revokes the share link. The URL 404s immediately and that token is dead permanently.                                                                                |
 | `DELETE` | `/api/audits/clear`                 | Deletes all stored audit history. Returns `{ deletedCount }`.                                                                                                       |
 
 ### NDJSON stream events
