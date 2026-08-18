@@ -120,7 +120,7 @@ export default function Home() {
                   ← Back to live crawl
                 </Button>
               </div>
-              <ReportView report={historicalAudit.report} />
+              <ReportView report={historicalAudit.report} shareToken={historicalAudit.shareToken} />
             </div>
           ) : (
             <>
