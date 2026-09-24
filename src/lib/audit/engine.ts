@@ -87,7 +87,8 @@ export async function runAudit(url: string, emit: Emit, crawlBatchId?: string): 
       const pageTitle = await page.title();
 
       emit({ type: "status", message: "Capturing desktop screenshot…" });
-      const desktopScreenshot = await captureScreenshot(page);
+      // a failed capture shouldn't sink the audit — the static-HTML modules can still report
+      const desktopScreenshot = await captureScreenshot(page).catch(() => "");
 
       const ctx: AuditContext = {
         url,

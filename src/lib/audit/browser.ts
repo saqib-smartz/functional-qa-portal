@@ -19,6 +19,11 @@ export async function getBrowser(): Promise<Browser> {
       import("@sparticuz/chromium").then((m) => m.default),
     ]);
 
+    // The SwiftShader GPU stack runs in-process under --single-process, so when it exhausts its
+    // buffers compositing a tall, iframe-heavy page it takes the whole browser down mid-screenshot.
+    // Audits don't need WebGL; software compositing is slower to fail and cheaper on memory.
+    sparticuzChromium.setGraphicsMode = false;
+
     return chromium.launch({
       args: [...sparticuzChromium.args, ...STEALTH_ARGS],
       executablePath: await sparticuzChromium.executablePath(),
