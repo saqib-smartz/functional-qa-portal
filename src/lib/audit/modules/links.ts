@@ -1,3 +1,4 @@
+import { MENU_SCOPE_SELECTOR } from "@/lib/audit/modules/navigation";
 import { makeFinding, type AuditModule, type AuditContext, type Finding } from "@/lib/audit/types";
 
 const MAX_LINKS_CHECKED = 25;
@@ -72,6 +73,7 @@ export const linksModule: AuditModule = {
     }
 
     const emptyHrefs: string[] = [];
+    let menuEmptyHrefCount = 0;
     const jsVoidHrefs: string[] = [];
     const anchorTargets: { href: string; anchor: string }[] = [];
     let internalCount = 0;
@@ -84,7 +86,10 @@ export const linksModule: AuditModule = {
       const label = node.text().trim() || node.attr("aria-label") || "(no text)";
 
       if (rawHref === undefined || rawHref.trim() === "" || rawHref.trim() === "#") {
-        emptyHrefs.push(label);
+        // Navigation links get no separate finding — they're called out here instead.
+        const inMenu = node.closest(MENU_SCOPE_SELECTOR).length > 0;
+        if (inMenu) menuEmptyHrefCount += 1;
+        emptyHrefs.push(inMenu ? `${label} (navigation menu)` : label);
         return;
       }
 
@@ -138,7 +143,9 @@ export const linksModule: AuditModule = {
           description:
             emptyHrefs.length === 0
               ? "All <a> tags on the page have a non-empty href."
-              : `${emptyHrefs.length} <a> tag(s) have a missing, empty, or "#"-only href.`,
+              : `${emptyHrefs.length} <a> tag(s) have a missing, empty, or "#"-only href${
+                  menuEmptyHrefCount > 0 ? `, including ${menuEmptyHrefCount} in the navigation menu` : ""
+                }.`,
           whyItMatters:
             "Links without a real destination are dead ends for users and assistive technology, and often indicate incomplete markup or a broken CMS template.",
           recommendation: "Give every link a real destination, or convert non-navigational elements to <button>.",

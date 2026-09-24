@@ -1,4 +1,3 @@
-import type { CheerioAPI } from "cheerio";
 import { makeFinding, type AuditModule, type Finding } from "@/lib/audit/types";
 
 const MAX_LISTED_ITEMS = 10;
@@ -26,7 +25,7 @@ const FOOTER_NAV_SELECTORS = [
 ].join(", ");
 
 /** Combined scope used for menu-link-quality checks (empty href / javascript:void, dropdown detection). */
-const MENU_SCOPE_SELECTOR = [HEADER_NAV_SELECTORS, FOOTER_NAV_SELECTORS, "nav"].join(", ");
+export const MENU_SCOPE_SELECTOR = [HEADER_NAV_SELECTORS, FOOTER_NAV_SELECTORS, "nav"].join(", ");
 
 /** Scope used for the header/footer broken-link reachability check specifically. */
 const HEADER_FOOTER_SCOPE_SELECTOR = [HEADER_NAV_SELECTORS, FOOTER_NAV_SELECTORS, "header a", "footer a"].join(", ");
@@ -92,16 +91,6 @@ function capItems<T>(items: T[], cap = MAX_LISTED_ITEMS): { shown: T[]; remainin
 }
 
 /** Whether `#fragment` resolves to a real element via id or name attribute in the page's static HTML. */
-function resolvesToRealAnchor($: CheerioAPI, fragment: string): boolean {
-  const id = fragment.slice(1).trim();
-  if (!id) return false;
-  try {
-    return $(`[id="${id}"]`).length > 0 || $(`[name="${id}"]`).length > 0;
-  } catch {
-    return false;
-  }
-}
-
 export const navigationModule: AuditModule = {
   category: "navigation",
   label: "Navigation",
@@ -217,7 +206,8 @@ export const navigationModule: AuditModule = {
       );
     }
 
-    // 5 & 6. Menu link quality: empty/non-functional hrefs and javascript:void(0) hrefs
+    // 5. Menu link quality: javascript:void(0) hrefs. Empty/placeholder hrefs are reported by the
+    //    Links module, which scans every <a> and flags the ones inside the navigation menu.
     const menuAnchors = $(MENU_SCOPE_SELECTOR).find("a").toArray();
 
     if (menuAnchors.length === 0) {
@@ -228,73 +218,23 @@ export const navigationModule: AuditModule = {
           status: "pass",
           severity: "info",
           pageUrl: url,
-          description: "No <a> links were found inside any detected navigation container, so link-quality checks (empty hrefs, javascript:void links) could not be performed.",
+          description: "No <a> links were found inside any detected navigation container, so the javascript: link check could not be performed.",
           whyItMatters: "Without any menu links present, there is nothing for visitors to click in the navigation.",
           recommendation: "Ensure the navigation menu actually contains links.",
           estimatedFixTime: "0 minutes",
         }),
       );
     } else {
-      const emptyHrefItems: MenuLinkItem[] = [];
       const jsVoidItems: MenuLinkItem[] = [];
 
       for (const el of menuAnchors) {
         const $el = $(el);
         const rawHref = $el.attr("href");
-        const text = $el.text().trim().replace(/\s+/g, " ").slice(0, 80) || "(no text)";
         const href = rawHref?.trim() ?? "";
-
-        if (/^javascript:\s*void\(/i.test(href) || /^javascript:/i.test(href)) {
+        if (/^javascript:/i.test(href)) {
+          const text = $el.text().trim().replace(/\s+/g, " ").slice(0, 80) || "(no text)";
           jsVoidItems.push({ text, href: rawHref ?? null });
-          continue;
         }
-
-        if (href === "") {
-          emptyHrefItems.push({ text, href: rawHref ?? null });
-          continue;
-        }
-
-        if (href === "#") {
-          emptyHrefItems.push({ text, href });
-          continue;
-        }
-
-        if (href.startsWith("#") && !resolvesToRealAnchor($, href)) {
-          emptyHrefItems.push({ text, href });
-        }
-      }
-
-      // Empty / non-functional hrefs
-      if (emptyHrefItems.length > 0) {
-        const { shown, remaining } = capItems(emptyHrefItems);
-        findings.push(
-          makeFinding({
-            category: "navigation",
-            title: "Navigation links with empty or non-functional hrefs",
-            status: "fail",
-            severity: "medium",
-            pageUrl: url,
-            description: `${emptyHrefItems.length} navigation link${emptyHrefItems.length === 1 ? "" : "s"} have a missing, empty, "#"-only, or unresolvable same-page href.${remaining > 0 ? ` Showing first ${MAX_LISTED_ITEMS}; ${remaining} more not shown.` : ""}`,
-            whyItMatters: "Links that go nowhere confuse visitors and look broken or unfinished, and can indicate incomplete implementation (e.g. a menu item left as a placeholder).",
-            recommendation: "Point each navigation link to a real destination, or remove the link if it is not yet ready.",
-            estimatedFixTime: "20 minutes",
-            meta: { count: emptyHrefItems.length, items: shown },
-          }),
-        );
-      } else {
-        findings.push(
-          makeFinding({
-            category: "navigation",
-            title: "No empty or non-functional navigation link hrefs found",
-            status: "pass",
-            severity: "info",
-            pageUrl: url,
-            description: "All navigation links have a non-empty href pointing to a real destination or a valid same-page anchor.",
-            whyItMatters: "Confirms visitors won't hit dead/placeholder links in the navigation.",
-            recommendation: "No action needed.",
-            estimatedFixTime: "0 minutes",
-          }),
-        );
       }
 
       // javascript:void(0) hrefs
