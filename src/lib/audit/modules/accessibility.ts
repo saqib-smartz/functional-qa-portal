@@ -1,3 +1,4 @@
+import { describeH1s } from "@/lib/audit/h1-details";
 import { makeFinding, type AuditModule, type AuditContext, type Finding } from "@/lib/audit/types";
 
 function capList<T>(items: T[], cap = 10): { items: T[]; truncated: boolean; totalCount: number } {
@@ -136,10 +137,11 @@ export const accessibilityModule: AuditModule = {
           status: "warning",
           severity: "medium",
           pageUrl: ctx.url,
-          description: `Found ${h1Count} <h1> elements on the page.`,
+          description: `Found ${h1Count} <h1> elements on the page. Each one is listed below with its markup and location.`,
           whyItMatters: "Multiple h1 elements confuse the page's heading landmark, making it harder for screen reader users to identify the main topic.",
           recommendation: "Use a single <h1> per page and demote the others to h2/h3 as appropriate.",
           estimatedFixTime: "15 minutes",
+          meta: { h1Count, items: describeH1s($) },
         }),
       );
     } else {

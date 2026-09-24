@@ -1,3 +1,4 @@
+import { describeH1s } from "@/lib/audit/h1-details";
 import { makeFinding, type AuditModule, type Finding } from "@/lib/audit/types";
 
 const MIN_DESCRIPTION_LENGTH = 150;
@@ -190,11 +191,12 @@ export const homepageModule: AuditModule = {
           status: "warning",
           severity: "low",
           pageUrl: url,
-          description: `Found ${h1Count} <h1> elements on the page; best practice is a single H1 per page.`,
+          description: `Found ${h1Count} <h1> elements on the page; best practice is a single H1 per page. Each one is listed below with its markup and location.`,
           whyItMatters: "Multiple H1s can dilute topical relevance signals and confuse the document outline for assistive technology.",
-          recommendation: "Consolidate to a single <h1> and demote the others to <h2>/<h3> as appropriate.",
+          recommendation:
+            "Keep the one <h1> that names the page's main topic and change the others to <h2>/<h3> — in a page builder, this is the heading's HTML tag setting.",
           estimatedFixTime: "15 minutes",
-          meta: { h1Count },
+          meta: { h1Count, items: describeH1s($) },
         }),
       );
     }
