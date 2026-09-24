@@ -5,8 +5,8 @@ const TITLE_IDEAL_MAX = 60;
 const TITLE_ACCEPTABLE_MIN = 30;
 const TITLE_ACCEPTABLE_MAX = 65;
 
-const DESC_IDEAL_MIN = 120;
-const DESC_IDEAL_MAX = 158;
+const DESC_IDEAL_MIN = 150;
+const DESC_IDEAL_MAX = 160;
 
 export const seoModule: AuditModule = {
   category: "seo",

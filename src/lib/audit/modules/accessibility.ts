@@ -43,44 +43,49 @@ export const accessibilityModule: AuditModule = {
       }),
     );
 
-    // --- Form inputs without an accessible name ---
-    const labelForIds = new Set(
-      $("label")
-        .map((_, el) => $(el).attr("for")?.trim())
-        .get()
-        .filter((v): v is string => !!v),
-    );
-    const allIds = new Set(
-      $("[id]")
-        .map((_, el) => $(el).attr("id")?.trim())
-        .get()
-        .filter((v): v is string => !!v),
-    );
-
-    const unnamedFields: string[] = [];
-    let namedFieldCount = 0;
-    $("input, textarea, select").each((_, el) => {
-      const node = $(el);
-      const tag = el.tagName?.toLowerCase() ?? "";
-      const type = (node.attr("type") ?? "text").toLowerCase();
-      if (tag === "input" && NAMED_FIELD_EXCLUDED_TYPES.has(type)) return;
-
-      namedFieldCount += 1;
-      const id = node.attr("id")?.trim();
-      const hasLabelFor = !!id && labelForIds.has(id);
-      const hasWrappingLabel = node.closest("label").length > 0;
-      const ariaLabel = (node.attr("aria-label") ?? "").trim();
-      const labelledBy = (node.attr("aria-labelledby") ?? "").trim();
-      const hasLabelledBy = labelledBy.split(/\s+/).filter(Boolean).some((ref) => allIds.has(ref));
-
-      if (!hasLabelFor && !hasWrappingLabel && !ariaLabel && !hasLabelledBy) {
-        const name = node.attr("name") ?? "";
-        unnamedFields.push(
-          `<${tag}${type && tag === "input" ? ` type="${type}"` : ""}${name ? ` name="${name}"` : ""}${id ? ` id="${id}"` : ""}>`,
+    // --- Form inputs without an accessible name (live page) ---
+    // Checked against the rendered page rather than raw HTML: reCAPTCHA response textareas,
+    // spam honeypots and collapsed widgets are in the markup but no visitor can see or reach them,
+    // and flagging them on a page with no form at all contradicts the Forms module.
+    const fieldCheck = await ctx.page
+      .evaluate((excludedTypes) => {
+        const unnamed: string[] = [];
+        let checked = 0;
+        const fields = document.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>(
+          "input, textarea, select",
         );
-      }
-    });
-    {
+        for (const el of Array.from(fields)) {
+          const tag = el.tagName.toLowerCase();
+          const type = (el.getAttribute("type") ?? "text").toLowerCase();
+          if (tag === "input" && excludedTypes.includes(type)) continue;
+          // not rendered (display:none, collapsed) or explicitly removed from the accessibility tree
+          if (el.getClientRects().length === 0) continue;
+          if (getComputedStyle(el).visibility === "hidden") continue;
+          if (el.closest('[aria-hidden="true"], [inert]')) continue;
+
+          checked += 1;
+          const hasLabel = (el.labels?.length ?? 0) > 0; // covers both <label for> and a wrapping <label>
+          const hasAriaLabel = !!el.getAttribute("aria-label")?.trim();
+          const hasLabelledBy = (el.getAttribute("aria-labelledby") ?? "")
+            .split(/\s+/)
+            .filter(Boolean)
+            .some((ref) => document.getElementById(ref));
+
+          if (!hasLabel && !hasAriaLabel && !hasLabelledBy) {
+            const name = el.getAttribute("name") ?? "";
+            const id = el.id;
+            unnamed.push(
+              `<${tag}${tag === "input" ? ` type="${type}"` : ""}${name ? ` name="${name}"` : ""}${id ? ` id="${id}"` : ""}>`,
+            );
+          }
+        }
+        return { checked, unnamed };
+      }, Array.from(NAMED_FIELD_EXCLUDED_TYPES))
+      .catch(() => null);
+
+    // No visible fields means there's nothing to assess — the Forms module already reports that.
+    if (fieldCheck && fieldCheck.checked > 0) {
+      const { checked: namedFieldCount, unnamed: unnamedFields } = fieldCheck;
       const cap = capList(unnamedFields);
       findings.push(
         makeFinding({

@@ -141,38 +141,6 @@ export const navigationModule: AuditModule = {
       );
     }
 
-    // 2. Footer navigation present
-    const footerNavCount = $(FOOTER_NAV_SELECTORS).length;
-    if (footerNavCount > 0) {
-      findings.push(
-        makeFinding({
-          category: "navigation",
-          title: "Footer navigation menu found",
-          status: "pass",
-          severity: "info",
-          pageUrl: url,
-          description: `Found ${footerNavCount} footer navigation container${footerNavCount === 1 ? "" : "s"} on the page.`,
-          whyItMatters: "A footer menu gives visitors a secondary, always-available way to reach important pages (policies, contact, sitemap, etc.).",
-          recommendation: "No action needed.",
-          estimatedFixTime: "0 minutes",
-        }),
-      );
-    } else {
-      findings.push(
-        makeFinding({
-          category: "navigation",
-          title: "No footer navigation menu detected",
-          status: "fail",
-          severity: "medium",
-          pageUrl: url,
-          description: "No footer navigation menu (e.g. <footer><nav>, .footer-menu, .footer-navigation) could be found on the page.",
-          whyItMatters: "Footer menus are a common, expected pattern that helps visitors quickly find secondary pages like contact, privacy policy, or sitemap.",
-          recommendation: "Add a footer navigation section with links to key secondary pages.",
-          estimatedFixTime: "30 minutes",
-        }),
-      );
-    }
-
     // 3. Call-to-action buttons (informational, not a hard requirement)
     const ctaEls = $(CTA_SELECTORS).toArray();
     const ctaItems: MenuLinkItem[] = ctaEls.map((el) => ({
