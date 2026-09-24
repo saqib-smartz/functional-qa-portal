@@ -1,6 +1,6 @@
 import { makeFinding, type AuditModule, type Finding } from "@/lib/audit/types";
 
-const MIN_DESCRIPTION_LENGTH = 50;
+const MIN_DESCRIPTION_LENGTH = 150;
 const MAX_DESCRIPTION_LENGTH = 160;
 
 export const homepageModule: AuditModule = {
