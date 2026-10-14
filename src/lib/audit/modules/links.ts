@@ -1,4 +1,4 @@
-import { MENU_SCOPE_SELECTOR } from "@/lib/audit/modules/navigation";
+import { HEADER_FOOTER_SCOPE_SELECTOR, MENU_SCOPE_SELECTOR } from "@/lib/audit/modules/navigation";
 import { makeFinding, type AuditModule, type AuditContext, type Finding } from "@/lib/audit/types";
 
 const MAX_LINKS_CHECKED = 25;
@@ -73,7 +73,6 @@ export const linksModule: AuditModule = {
     }
 
     const emptyHrefs: string[] = [];
-    let menuEmptyHrefCount = 0;
     const jsVoidHrefs: string[] = [];
     const anchorTargets: { href: string; anchor: string }[] = [];
     let internalCount = 0;
@@ -84,24 +83,25 @@ export const linksModule: AuditModule = {
       const node = $(el);
       const rawHref = node.attr("href");
       const label = node.text().trim() || node.attr("aria-label") || "(no text)";
+      // Header/footer/navigation links are covered by the Navigation module's own (more detailed)
+      // findings, so they're left out of the checks below to avoid reporting the same issue twice.
+      const inMenu = node.closest(MENU_SCOPE_SELECTOR).length > 0;
+      const inHeaderFooter = node.closest(HEADER_FOOTER_SCOPE_SELECTOR).length > 0;
 
       if (rawHref === undefined || rawHref.trim() === "" || rawHref.trim() === "#") {
-        // Navigation links get no separate finding — they're called out here instead.
-        const inMenu = node.closest(MENU_SCOPE_SELECTOR).length > 0;
-        if (inMenu) menuEmptyHrefCount += 1;
-        emptyHrefs.push(inMenu ? `${label} (navigation menu)` : label);
+        if (!inMenu) emptyHrefs.push(label);
         return;
       }
 
       const href = rawHref.trim();
 
       if (/^javascript:/i.test(href)) {
-        jsVoidHrefs.push(label);
+        if (!inMenu) jsVoidHrefs.push(label);
         return;
       }
 
       if (href.startsWith("#")) {
-        anchorTargets.push({ href, anchor: href.slice(1) });
+        if (!inMenu) anchorTargets.push({ href, anchor: href.slice(1) });
         return;
       }
 
@@ -127,7 +127,7 @@ export const linksModule: AuditModule = {
         externalCount += 1;
       }
 
-      absoluteHttpLinks.add(resolved.toString());
+      if (!inHeaderFooter) absoluteHttpLinks.add(resolved.toString());
     });
 
     // --- Empty hrefs ---
@@ -143,9 +143,7 @@ export const linksModule: AuditModule = {
           description:
             emptyHrefs.length === 0
               ? "All <a> tags on the page have a non-empty href."
-              : `${emptyHrefs.length} <a> tag(s) have a missing, empty, or "#"-only href${
-                  menuEmptyHrefCount > 0 ? `, including ${menuEmptyHrefCount} in the navigation menu` : ""
-                }.`,
+              : `${emptyHrefs.length} <a> tag(s) have a missing, empty, or "#"-only href.`,
           whyItMatters:
             "Links without a real destination are dead ends for users and assistive technology, and often indicate incomplete markup or a broken CMS template.",
           recommendation: "Give every link a real destination, or convert non-navigational elements to <button>.",
