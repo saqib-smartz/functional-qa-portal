@@ -3,7 +3,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "WordPress AI QA Auditor",
+  title: "Smartz Auditor",
   description:
     "Analyze a single webpage for functionality, content quality, SEO, responsiveness, and WordPress best practices.",
 };

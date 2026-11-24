@@ -131,7 +131,7 @@ export function buildReportHtml(report: AuditReport): string {
 </head>
 <body>
   <div class="cover">
-    <div class="cover-brand">${LOGO_SVG}<span>WordPress AI QA Auditor</span></div>
+    <div class="cover-brand">${LOGO_SVG}<span>Smartz Auditor</span></div>
     <h1>QA Audit Report</h1>
     <p class="meta">Generated: ${escapeHtml(generatedAt)}</p>
     <p class="meta">Page: ${escapeHtml(report.pageTitle || "Untitled Page")}</p>

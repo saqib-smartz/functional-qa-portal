@@ -9,7 +9,7 @@ export function Hero() {
         AI-powered QA audit
       </Badge>
       <h1 className="text-[40px] leading-[1.25] font-normal text-balance text-foreground">
-        WordPress AI QA Auditor
+        Smartz Auditor
       </h1>
       <p className="text-base text-balance text-muted-foreground">
         Analyze a single webpage for functionality, content quality, SEO, responsiveness, and WordPress best

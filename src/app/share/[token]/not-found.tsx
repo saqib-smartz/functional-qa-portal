@@ -25,7 +25,7 @@ export default function SharedReportNotFound() {
               for a new link.
             </p>
             <Link href="/" className={buttonVariants({ variant: "outline", size: "sm" })}>
-              Go to WP QA Auditor
+              Go to Smartz Auditor
             </Link>
           </CardContent>
         </Card>
