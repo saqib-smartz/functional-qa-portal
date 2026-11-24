@@ -1,4 +1,4 @@
-# WordPress AI QA Auditor
+# Smartz Auditor
 
 A Next.js 15 application that performs a comprehensive, AI-assisted QA audit of WordPress pages.
 Submit a URL — or upload a `sitemap.xml` and audit many pages in one batch — and it runs a real

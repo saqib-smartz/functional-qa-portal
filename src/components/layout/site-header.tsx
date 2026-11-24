@@ -19,7 +19,7 @@ export function SiteHeader({ onToggleHistory }: { onToggleHistory?: () => void }
           )}
           <Link href="/" className="flex items-center gap-2 text-[15px] font-semibold tracking-tight">
             <ClipboardCheck className="size-5" />
-            <span>WP QA Auditor</span>
+            <span>Smartz Auditor</span>
           </Link>
         </div>
         <Badge className="hidden border-transparent bg-ring text-white sm:inline-flex">Single-page audit</Badge>
